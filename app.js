@@ -3,9 +3,12 @@ let queue = [];
 let masteredCount = 0;
 let currentDrill = null;
 let answered = false;
+let exampleObserver = null;
 
 const topicSelect = document.getElementById("topic-select");
 const chartContent = document.getElementById("chart-content");
+const examplesChartContent = document.getElementById("examples-chart-content");
+const examplesList = document.getElementById("examples-list");
 const promptText = document.getElementById("prompt-text");
 const choicesEl = document.getElementById("choices");
 const feedbackEl = document.getElementById("feedback");
@@ -22,8 +25,7 @@ function init() {
 
   topicSelect.addEventListener("change", () => {
     currentTopic = TOPICS[topicSelect.value];
-    renderChart();
-    startPractice();
+    renderAll();
   });
 
   document.querySelectorAll(".nav-btn").forEach(btn => {
@@ -35,49 +37,154 @@ function init() {
     });
   });
 
-  renderChart();
+  renderAll();
+}
+
+function renderAll() {
+  renderChartView();
+  renderExamplesView();
   startPractice();
 }
 
-function renderChart() {
+// Builds one comparison table: rows = pronouns, columns grouped by tense,
+// each tense split into Ser / Estar so the two verbs sit side by side.
+function buildCombinedTable(topic) {
+  const table = document.createElement("table");
+  table.className = "conj-combined";
+
+  const thead = document.createElement("thead");
+  const tenseHeaderRow = document.createElement("tr");
+  tenseHeaderRow.innerHTML = `<th class="corner" rowspan="2">Pronoun</th>`;
+  topic.tenseOrder.forEach(tenseKey => {
+    const label = topic.verbs[0].tenses[tenseKey].label;
+    const th = document.createElement("th");
+    th.colSpan = topic.verbs.length;
+    th.className = "tense-head";
+    th.textContent = label;
+    tenseHeaderRow.appendChild(th);
+  });
+  thead.appendChild(tenseHeaderRow);
+
+  const verbHeaderRow = document.createElement("tr");
+  topic.tenseOrder.forEach(() => {
+    topic.verbs.forEach(verb => {
+      const th = document.createElement("th");
+      th.className = "verb-head";
+      th.textContent = verb.label;
+      verbHeaderRow.appendChild(th);
+    });
+  });
+  thead.appendChild(verbHeaderRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement("tbody");
+  topic.pronouns.forEach((pronoun, pIdx) => {
+    const tr = document.createElement("tr");
+    const pronounTd = document.createElement("td");
+    pronounTd.className = "pronoun";
+    pronounTd.textContent = pronoun;
+    tr.appendChild(pronounTd);
+
+    topic.tenseOrder.forEach(tenseKey => {
+      topic.verbs.forEach(verb => {
+        const td = document.createElement("td");
+        td.className = "form";
+        td.textContent = verb.tenses[tenseKey].forms[pIdx];
+        td.dataset.verb = verb.key;
+        td.dataset.tense = tenseKey;
+        td.dataset.pronoun = pIdx;
+        tr.appendChild(td);
+      });
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+
+  return table;
+}
+
+function renderChartView() {
   chartContent.innerHTML = "";
-  currentTopic.charts.forEach(chart => {
-    const block = document.createElement("div");
-    block.className = "chart-block";
 
-    const h2 = document.createElement("h2");
-    h2.textContent = chart.verb;
-    block.appendChild(h2);
+  const tableBlock = document.createElement("div");
+  tableBlock.className = "chart-block";
+  const h2 = document.createElement("h2");
+  h2.textContent = "Compare all forms at a glance";
+  tableBlock.appendChild(h2);
+  const tableWrap = document.createElement("div");
+  tableWrap.className = "table-scroll";
+  tableWrap.appendChild(buildCombinedTable(currentTopic));
+  tableBlock.appendChild(tableWrap);
+  chartContent.appendChild(tableBlock);
 
+  const usageBlock = document.createElement("div");
+  usageBlock.className = "usage-columns";
+  currentTopic.verbs.forEach(verb => {
+    const col = document.createElement("div");
+    col.className = "chart-block usage-col";
+    const vh = document.createElement("h2");
+    vh.textContent = `When to use ${verb.label}`;
+    col.appendChild(vh);
     const ul = document.createElement("ul");
     ul.className = "usage-list";
-    chart.usage.forEach(u => {
+    verb.usage.forEach(u => {
       const li = document.createElement("li");
       li.textContent = u;
       ul.appendChild(li);
     });
-    block.appendChild(ul);
-
-    Object.entries(chart.tenses).forEach(([tenseName, tenseData]) => {
-      const h3 = document.createElement("p");
-      h3.className = "usage";
-      h3.style.fontWeight = "600";
-      h3.style.color = "var(--ink)";
-      h3.textContent = tenseName;
-      block.appendChild(h3);
-
-      const table = document.createElement("table");
-      table.className = "conj";
-      tenseData.rows.forEach(row => {
-        const tr = document.createElement("tr");
-        tr.innerHTML = `<td class="pronoun">${row.pronoun}</td><td class="form">${row.form}</td>`;
-        table.appendChild(tr);
-      });
-      block.appendChild(table);
-    });
-
-    chartContent.appendChild(block);
+    col.appendChild(ul);
+    usageBlock.appendChild(col);
   });
+  chartContent.appendChild(usageBlock);
+}
+
+function renderExamplesView() {
+  examplesChartContent.innerHTML = "";
+  examplesChartContent.appendChild(buildCombinedTable(currentTopic));
+
+  examplesList.innerHTML = "";
+  if (exampleObserver) exampleObserver.disconnect();
+
+  currentTopic.drills.forEach((drill, idx) => {
+    const card = document.createElement("div");
+    card.className = "example-card";
+    card.dataset.verb = drill.verb;
+    card.dataset.tense = drill.tense;
+    card.dataset.pronoun = drill.pronounIndex;
+
+    const filled = drill.sentence.replace("___", `<strong class="filled">${drill.answer}</strong>`);
+    card.innerHTML = `
+      <p class="example-sentence">${filled}</p>
+      <p class="example-translation">${drill.translation}</p>
+      <p class="example-explanation">${drill.explanation}</p>
+    `;
+    examplesList.appendChild(card);
+  });
+
+  exampleObserver = new IntersectionObserver(onExampleIntersect, {
+    root: null,
+    rootMargin: "-35% 0px -55% 0px",
+    threshold: 0
+  });
+  examplesList.querySelectorAll(".example-card").forEach(card => exampleObserver.observe(card));
+}
+
+function onExampleIntersect(entries) {
+  entries.forEach(entry => {
+    if (!entry.isIntersecting) return;
+    const { verb, tense, pronoun } = entry.target.dataset;
+    highlightChartCell(verb, tense, pronoun);
+    examplesList.querySelectorAll(".example-card").forEach(c => c.classList.remove("active"));
+    entry.target.classList.add("active");
+  });
+}
+
+function highlightChartCell(verb, tense, pronoun) {
+  examplesChartContent.querySelectorAll("td.form").forEach(td => td.classList.remove("highlight-cell"));
+  const cell = examplesChartContent.querySelector(
+    `td[data-verb="${verb}"][data-tense="${tense}"][data-pronoun="${pronoun}"]`
+  );
+  if (cell) cell.classList.add("highlight-cell");
 }
 
 function startPractice() {
