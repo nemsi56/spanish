@@ -3,16 +3,23 @@ let queue = [];
 let masteredCount = 0;
 let currentDrill = null;
 let answered = false;
+let exampleMode = "all"; // "all" | "select"
+let selectedCells = new Set(); // keys like "estar|preterite|2"
 
 const topicSelect = document.getElementById("topic-select");
 const chartContent = document.getElementById("chart-content");
 const examplesChartContent = document.getElementById("examples-chart-content");
 const examplesList = document.getElementById("examples-list");
+const selectHint = document.getElementById("select-hint");
 const promptText = document.getElementById("prompt-text");
 const choicesEl = document.getElementById("choices");
 const feedbackEl = document.getElementById("feedback");
 const statMastered = document.getElementById("stat-mastered");
 const statQueue = document.getElementById("stat-queue");
+
+function cellKey(verb, tense, pronoun) {
+  return `${verb}|${tense}|${pronoun}`;
+}
 
 function init() {
   TOPICS.forEach((t, i) => {
@@ -24,6 +31,7 @@ function init() {
 
   topicSelect.addEventListener("change", () => {
     currentTopic = TOPICS[topicSelect.value];
+    selectedCells = new Set();
     renderAll();
   });
 
@@ -33,6 +41,16 @@ function init() {
       btn.classList.add("active");
       document.querySelectorAll(".view").forEach(v => v.classList.remove("active"));
       document.getElementById(btn.dataset.view + "-view").classList.add("active");
+    });
+  });
+
+  document.querySelectorAll(".mode-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      exampleMode = btn.dataset.mode;
+      document.querySelectorAll(".mode-btn").forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+      applyExampleModeUI();
+      renderExampleList();
     });
   });
 
@@ -143,10 +161,55 @@ function renderChartView() {
 function renderExamplesView() {
   examplesChartContent.innerHTML = "";
   examplesChartContent.appendChild(buildCombinedTable(currentTopic));
+  applyExampleModeUI();
+  renderExampleList();
+}
 
+// Wires up (or tears down) click-to-select on chart cells depending on
+// exampleMode, and paints the depressed/shaded look for already-selected cells.
+function applyExampleModeUI() {
+  const isSelect = exampleMode === "select";
+  selectHint.style.display = isSelect ? "block" : "none";
+
+  examplesChartContent.querySelectorAll("td.form").forEach(td => {
+    td.classList.toggle("selectable", isSelect);
+    const key = cellKey(td.dataset.verb, td.dataset.tense, td.dataset.pronoun);
+    td.classList.toggle("selected-cell", isSelect && selectedCells.has(key));
+    td.onclick = isSelect ? () => toggleCellSelection(td) : null;
+  });
+}
+
+function toggleCellSelection(td) {
+  const key = cellKey(td.dataset.verb, td.dataset.tense, td.dataset.pronoun);
+  if (selectedCells.has(key)) {
+    selectedCells.delete(key);
+    td.classList.remove("selected-cell");
+  } else {
+    selectedCells.add(key);
+    td.classList.add("selected-cell");
+  }
+  renderExampleList();
+}
+
+function renderExampleList() {
   examplesList.innerHTML = "";
 
-  currentTopic.drills.forEach((drill, idx) => {
+  let drills = currentTopic.drills;
+  if (exampleMode === "select") {
+    drills = drills.filter(d => selectedCells.has(cellKey(d.verb, d.tense, d.pronounIndex)));
+  }
+
+  if (exampleMode === "select" && drills.length === 0) {
+    const msg = document.createElement("p");
+    msg.className = "select-empty";
+    msg.textContent = selectedCells.size === 0
+      ? "Tap forms in the chart above to build your practice list."
+      : "No example sentences yet for the selected forms — try selecting others.";
+    examplesList.appendChild(msg);
+    return;
+  }
+
+  drills.forEach(drill => {
     const card = document.createElement("div");
     card.className = "example-card";
     card.dataset.verb = drill.verb;

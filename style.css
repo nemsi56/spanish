@@ -199,9 +199,25 @@ table.conj-combined td.form {
   transition: background 0.25s ease, color 0.25s ease;
 }
 
+table.conj-combined td.form.selectable {
+  cursor: pointer;
+}
+
+table.conj-combined td.form.selectable:hover {
+  background: var(--border);
+}
+
+table.conj-combined td.form.selected-cell {
+  background: var(--border);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.18);
+  border-radius: 4px;
+  color: var(--ink);
+}
+
 table.conj-combined td.form.highlight-cell {
-  background: var(--accent);
-  color: white;
+  background: var(--accent) !important;
+  color: white !important;
+  box-shadow: none !important;
   border-radius: 4px;
 }
 
@@ -227,6 +243,46 @@ table.conj-combined td.form.highlight-cell {
   padding: 0.75rem 0;
   border-bottom: 1px solid var(--border);
   margin-bottom: 1rem;
+}
+
+.mode-toggle {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.mode-btn {
+  padding: 0.35rem 1rem;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--ink);
+}
+
+.mode-btn.active {
+  background: var(--accent);
+  color: white;
+  border-color: var(--accent);
+}
+
+.select-hint {
+  display: none;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.82rem;
+  margin: 0 0 0.5rem;
+}
+
+.select-empty {
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.95rem;
+  padding: 2rem 1rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius);
 }
 
 .sticky-chart-wrap .chart-block,

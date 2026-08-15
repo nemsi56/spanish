@@ -13,7 +13,7 @@
   <nav>
     <button class="nav-btn active" data-view="chart">Chart</button>
     <button class="nav-btn" data-view="examples">Examples</button>
-    <button class="nav-btn" data-view="practice">Practice</button>
+    <button class="nav-btn" data-view="practice">Challenge</button>
   </nav>
 </header>
 
@@ -29,6 +29,11 @@
 
   <section id="examples-view" class="view">
     <div class="sticky-chart-wrap">
+      <div id="mode-toggle" class="mode-toggle">
+        <button class="mode-btn active" data-mode="all">Show all</button>
+        <button class="mode-btn" data-mode="select">Select</button>
+      </div>
+      <p id="select-hint" class="select-hint">Tap forms in the chart to build a focused practice list.</p>
       <div id="examples-chart-content"></div>
     </div>
     <div id="examples-list"></div>
