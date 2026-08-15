@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Español por Repetición</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+  <h1>Español por Repetición</h1>
+  <p class="subtitle">Learn by using it, not by studying it.</p>
+  <nav>
+    <button class="nav-btn active" data-view="chart">Chart</button>
+    <button class="nav-btn" data-view="practice">Practice</button>
+  </nav>
+</header>
+
+<main>
+  <section id="topic-picker">
+    <label for="topic-select">Topic:</label>
+    <select id="topic-select"></select>
+  </section>
+
+  <section id="chart-view" class="view active">
+    <div id="chart-content"></div>
+  </section>
+
+  <section id="practice-view" class="view">
+    <div id="practice-stats">
+      <span id="stat-mastered">Mastered: 0</span>
+      <span id="stat-queue">Left this round: 0</span>
+    </div>
+    <div id="practice-card">
+      <p class="prompt" id="prompt-text"></p>
+      <div id="choices"></div>
+      <div id="feedback"></div>
+    </div>
+  </section>
+</main>
+
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
