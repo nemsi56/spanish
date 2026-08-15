@@ -208,17 +208,24 @@ table.conj-combined td.form.selectable:hover {
 }
 
 table.conj-combined td.form.selected-cell {
-  background: var(--border);
-  box-shadow: inset 0 2px 3px rgba(0, 0, 0, 0.18);
+  background: #d8cdbf;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.3);
   border-radius: 4px;
   color: var(--ink);
 }
 
 table.conj-combined td.form.highlight-cell {
-  background: var(--accent) !important;
-  color: white !important;
-  box-shadow: none !important;
+  background: var(--accent);
+  color: white;
   border-radius: 4px;
+  box-shadow: 0 0 0 3px var(--accent-light);
+}
+
+/* Currently-highlighted AND selected: keep the accent fill (so it's
+   unmistakably "this sentence") but layer the depressed shadow back on
+   top so the selected state doesn't visually disappear underneath it. */
+table.conj-combined td.form.highlight-cell.selected-cell {
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.45), 0 0 0 3px var(--accent-light);
 }
 
 .usage-columns {
@@ -268,6 +275,21 @@ table.conj-combined td.form.highlight-cell {
   border-color: var(--accent);
 }
 
+.clear-btn {
+  display: none;
+  padding: 0.35rem 1rem;
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--bad);
+}
+
+.clear-btn:hover {
+  border-color: var(--bad);
+}
+
 .select-hint {
   display: none;
   text-align: center;
@@ -283,6 +305,18 @@ table.conj-combined td.form.highlight-cell {
   padding: 2rem 1rem;
   border: 1px dashed var(--border);
   border-radius: var(--radius);
+}
+
+#load-more-wrap {
+  display: flex;
+  justify-content: center;
+  margin-top: 1rem;
+}
+
+.load-more-btn {
+  background: var(--card);
+  color: var(--accent);
+  border: 1px solid var(--accent);
 }
 
 .sticky-chart-wrap .chart-block,

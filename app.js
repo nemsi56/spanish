@@ -5,12 +5,17 @@ let currentDrill = null;
 let answered = false;
 let exampleMode = "all"; // "all" | "select"
 let selectedCells = new Set(); // keys like "estar|preterite|2"
+let activeDrill = null; // the drill currently highlighted in the chart
+let visibleCount = 24;
+const PAGE_SIZE = 24;
 
 const topicSelect = document.getElementById("topic-select");
 const chartContent = document.getElementById("chart-content");
 const examplesChartContent = document.getElementById("examples-chart-content");
 const examplesList = document.getElementById("examples-list");
+const loadMoreWrap = document.getElementById("load-more-wrap");
 const selectHint = document.getElementById("select-hint");
+const clearSelectionBtn = document.getElementById("clear-selection");
 const promptText = document.getElementById("prompt-text");
 const choicesEl = document.getElementById("choices");
 const feedbackEl = document.getElementById("feedback");
@@ -32,6 +37,7 @@ function init() {
   topicSelect.addEventListener("change", () => {
     currentTopic = TOPICS[topicSelect.value];
     selectedCells = new Set();
+    activeDrill = null;
     renderAll();
   });
 
@@ -50,8 +56,14 @@ function init() {
       document.querySelectorAll(".mode-btn").forEach(b => b.classList.remove("active"));
       btn.classList.add("active");
       applyExampleModeUI();
-      renderExampleList();
+      renderExampleList(true);
     });
+  });
+
+  clearSelectionBtn.addEventListener("click", () => {
+    selectedCells.clear();
+    examplesChartContent.querySelectorAll("td.form.selected-cell").forEach(td => td.classList.remove("selected-cell"));
+    renderExampleList(true);
   });
 
   renderAll();
@@ -161,8 +173,9 @@ function renderChartView() {
 function renderExamplesView() {
   examplesChartContent.innerHTML = "";
   examplesChartContent.appendChild(buildCombinedTable(currentTopic));
+  activeDrill = null;
   applyExampleModeUI();
-  renderExampleList();
+  renderExampleList(true);
 }
 
 // Wires up (or tears down) click-to-select on chart cells depending on
@@ -170,6 +183,7 @@ function renderExamplesView() {
 function applyExampleModeUI() {
   const isSelect = exampleMode === "select";
   selectHint.style.display = isSelect ? "block" : "none";
+  clearSelectionBtn.style.display = isSelect ? "inline-block" : "none";
 
   examplesChartContent.querySelectorAll("td.form").forEach(td => {
     td.classList.toggle("selectable", isSelect);
@@ -179,6 +193,9 @@ function applyExampleModeUI() {
   });
 }
 
+// Toggling a cell only updates the selection set and re-filters the list —
+// it does NOT move which sentence is highlighted, so the chart doesn't
+// appear to "jump" to an unrelated cell every time you select/deselect one.
 function toggleCellSelection(td) {
   const key = cellKey(td.dataset.verb, td.dataset.tense, td.dataset.pronoun);
   if (selectedCells.has(key)) {
@@ -188,16 +205,51 @@ function toggleCellSelection(td) {
     selectedCells.add(key);
     td.classList.add("selected-cell");
   }
-  renderExampleList();
+  renderExampleList(true);
 }
 
-function renderExampleList() {
-  examplesList.innerHTML = "";
+function filteredDrills() {
+  if (exampleMode !== "select") return currentTopic.drills;
+  return currentTopic.drills.filter(d => selectedCells.has(cellKey(d.verb, d.tense, d.pronounIndex)));
+}
 
-  let drills = currentTopic.drills;
-  if (exampleMode === "select") {
-    drills = drills.filter(d => selectedCells.has(cellKey(d.verb, d.tense, d.pronounIndex)));
-  }
+function makeExampleCard(drill) {
+  const card = document.createElement("div");
+  card.className = "example-card";
+  card.dataset.verb = drill.verb;
+  card.dataset.tense = drill.tense;
+  card.dataset.pronoun = drill.pronounIndex;
+
+  const filled = drill.sentence.replace("___", `<strong class="filled">${drill.answer}</strong>`);
+  card.innerHTML = `
+    <p class="example-sentence">${filled}</p>
+    <p class="example-translation">${drill.translation}</p>
+    <p class="example-explanation">${drill.explanation}</p>
+  `;
+  card.addEventListener("click", () => setActiveDrill(drill));
+  return card;
+}
+
+function setActiveDrill(drill) {
+  activeDrill = drill;
+  examplesList.querySelectorAll(".example-card").forEach(c => {
+    c.classList.toggle(
+      "active",
+      c.dataset.verb === drill.verb && c.dataset.tense === drill.tense && Number(c.dataset.pronoun) === drill.pronounIndex
+    );
+  });
+  highlightChartCell(drill.verb, drill.tense, drill.pronounIndex);
+}
+
+// resetPage: true when the filter criteria changed (mode toggle, cell
+// select/deselect, clear, topic change) — restarts pagination at PAGE_SIZE.
+// false for "Load more" — keeps what's already shown and appends the rest.
+function renderExampleList(resetPage) {
+  if (resetPage) visibleCount = PAGE_SIZE;
+
+  const drills = filteredDrills();
+  examplesList.innerHTML = "";
+  loadMoreWrap.innerHTML = "";
 
   if (exampleMode === "select" && drills.length === 0) {
     const msg = document.createElement("p");
@@ -206,33 +258,28 @@ function renderExampleList() {
       ? "Tap forms in the chart above to build your practice list."
       : "No example sentences yet for the selected forms — try selecting others.";
     examplesList.appendChild(msg);
+    activeDrill = null;
+    examplesChartContent.querySelectorAll("td.form").forEach(td => td.classList.remove("highlight-cell"));
     return;
   }
 
-  drills.forEach(drill => {
-    const card = document.createElement("div");
-    card.className = "example-card";
-    card.dataset.verb = drill.verb;
-    card.dataset.tense = drill.tense;
-    card.dataset.pronoun = drill.pronounIndex;
+  const visible = drills.slice(0, visibleCount);
+  visible.forEach(drill => examplesList.appendChild(makeExampleCard(drill)));
 
-    const filled = drill.sentence.replace("___", `<strong class="filled">${drill.answer}</strong>`);
-    card.innerHTML = `
-      <p class="example-sentence">${filled}</p>
-      <p class="example-translation">${drill.translation}</p>
-      <p class="example-explanation">${drill.explanation}</p>
-    `;
-    card.addEventListener("click", () => {
-      const { verb, tense, pronoun } = card.dataset;
-      highlightChartCell(verb, tense, pronoun);
-      examplesList.querySelectorAll(".example-card").forEach(c => c.classList.remove("active"));
-      card.classList.add("active");
+  const stillActive = activeDrill && visible.includes(activeDrill);
+  setActiveDrill(stillActive ? activeDrill : visible[0]);
+
+  if (drills.length > visible.length) {
+    const remaining = drills.length - visible.length;
+    const loadBtn = document.createElement("button");
+    loadBtn.className = "next-btn load-more-btn";
+    loadBtn.textContent = `Load ${Math.min(PAGE_SIZE, remaining)} more (${remaining} left)`;
+    loadBtn.addEventListener("click", () => {
+      visibleCount += PAGE_SIZE;
+      renderExampleList(false);
     });
-    examplesList.appendChild(card);
-  });
-
-  const firstCard = examplesList.querySelector(".example-card");
-  if (firstCard) firstCard.click();
+    loadMoreWrap.appendChild(loadBtn);
+  }
 }
 
 function highlightChartCell(verb, tense, pronoun) {
