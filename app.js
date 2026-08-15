@@ -3,7 +3,6 @@ let queue = [];
 let masteredCount = 0;
 let currentDrill = null;
 let answered = false;
-let exampleObserver = null;
 
 const topicSelect = document.getElementById("topic-select");
 const chartContent = document.getElementById("chart-content");
@@ -57,10 +56,13 @@ function buildCombinedTable(topic) {
   tenseHeaderRow.innerHTML = `<th class="corner" rowspan="2">Pronoun</th>`;
   topic.tenseOrder.forEach(tenseKey => {
     const label = topic.verbs[0].tenses[tenseKey].label;
+    const meta = topic.tenseMeta && topic.tenseMeta[tenseKey];
     const th = document.createElement("th");
     th.colSpan = topic.verbs.length;
     th.className = "tense-head";
-    th.textContent = label;
+    th.innerHTML = meta
+      ? `${label}<span class="tense-hint"><span class="tense-icon">${meta.icon}</span>${meta.hint}</span>`
+      : label;
     tenseHeaderRow.appendChild(th);
   });
   thead.appendChild(tenseHeaderRow);
@@ -143,7 +145,6 @@ function renderExamplesView() {
   examplesChartContent.appendChild(buildCombinedTable(currentTopic));
 
   examplesList.innerHTML = "";
-  if (exampleObserver) exampleObserver.disconnect();
 
   currentTopic.drills.forEach((drill, idx) => {
     const card = document.createElement("div");
@@ -158,25 +159,17 @@ function renderExamplesView() {
       <p class="example-translation">${drill.translation}</p>
       <p class="example-explanation">${drill.explanation}</p>
     `;
+    card.addEventListener("click", () => {
+      const { verb, tense, pronoun } = card.dataset;
+      highlightChartCell(verb, tense, pronoun);
+      examplesList.querySelectorAll(".example-card").forEach(c => c.classList.remove("active"));
+      card.classList.add("active");
+    });
     examplesList.appendChild(card);
   });
 
-  exampleObserver = new IntersectionObserver(onExampleIntersect, {
-    root: null,
-    rootMargin: "-35% 0px -55% 0px",
-    threshold: 0
-  });
-  examplesList.querySelectorAll(".example-card").forEach(card => exampleObserver.observe(card));
-}
-
-function onExampleIntersect(entries) {
-  entries.forEach(entry => {
-    if (!entry.isIntersecting) return;
-    const { verb, tense, pronoun } = entry.target.dataset;
-    highlightChartCell(verb, tense, pronoun);
-    examplesList.querySelectorAll(".example-card").forEach(c => c.classList.remove("active"));
-    entry.target.classList.add("active");
-  });
+  const firstCard = examplesList.querySelector(".example-card");
+  if (firstCard) firstCard.click();
 }
 
 function highlightChartCell(verb, tense, pronoun) {
