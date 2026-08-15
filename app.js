@@ -63,6 +63,7 @@ function init() {
   clearSelectionBtn.addEventListener("click", () => {
     selectedCells.clear();
     examplesChartContent.querySelectorAll("td.form.selected-cell").forEach(td => td.classList.remove("selected-cell"));
+    examplesChartContent.querySelectorAll("th.verb-head").forEach(updateColumnHeaderState);
     renderExampleList(true);
   });
 
@@ -98,11 +99,13 @@ function buildCombinedTable(topic) {
   thead.appendChild(tenseHeaderRow);
 
   const verbHeaderRow = document.createElement("tr");
-  topic.tenseOrder.forEach(() => {
+  topic.tenseOrder.forEach(tenseKey => {
     topic.verbs.forEach(verb => {
       const th = document.createElement("th");
       th.className = "verb-head";
       th.textContent = verb.label;
+      th.dataset.verb = verb.key;
+      th.dataset.tense = tenseKey;
       verbHeaderRow.appendChild(th);
     });
   });
@@ -178,8 +181,9 @@ function renderExamplesView() {
   renderExampleList(true);
 }
 
-// Wires up (or tears down) click-to-select on chart cells depending on
-// exampleMode, and paints the depressed/shaded look for already-selected cells.
+// Wires up (or tears down) click-to-select on chart cells and column
+// headers depending on exampleMode, and paints the depressed/shaded look
+// for already-selected cells and fully-selected column headers.
 function applyExampleModeUI() {
   const isSelect = exampleMode === "select";
   selectHint.style.display = isSelect ? "block" : "none";
@@ -191,11 +195,28 @@ function applyExampleModeUI() {
     td.classList.toggle("selected-cell", isSelect && selectedCells.has(key));
     td.onclick = isSelect ? () => toggleCellSelection(td) : null;
   });
+
+  examplesChartContent.querySelectorAll("th.verb-head").forEach(th => {
+    th.classList.toggle("selectable", isSelect);
+    th.onclick = isSelect ? () => toggleColumnSelection(th.dataset.verb, th.dataset.tense) : null;
+    updateColumnHeaderState(th);
+  });
 }
 
-// Toggling a cell only updates the selection set and re-filters the list —
-// it does NOT move which sentence is highlighted, so the chart doesn't
-// appear to "jump" to an unrelated cell every time you select/deselect one.
+function columnCells(verbKey, tenseKey) {
+  return [...examplesChartContent.querySelectorAll(`td.form[data-verb="${verbKey}"][data-tense="${tenseKey}"]`)];
+}
+
+function updateColumnHeaderState(th) {
+  const cells = columnCells(th.dataset.verb, th.dataset.tense);
+  const allSelected = cells.length > 0 && cells.every(td => selectedCells.has(cellKey(td.dataset.verb, td.dataset.tense, td.dataset.pronoun)));
+  th.classList.toggle("col-selected", exampleMode === "select" && allSelected);
+}
+
+// Toggling a cell or a whole column only updates the selection set and
+// re-filters the list — it does NOT move which sentence is highlighted, so
+// the chart doesn't appear to "jump" to an unrelated cell every time you
+// select/deselect something.
 function toggleCellSelection(td) {
   const key = cellKey(td.dataset.verb, td.dataset.tense, td.dataset.pronoun);
   if (selectedCells.has(key)) {
@@ -205,6 +226,30 @@ function toggleCellSelection(td) {
     selectedCells.add(key);
     td.classList.add("selected-cell");
   }
+  const th = examplesChartContent.querySelector(`th.verb-head[data-verb="${td.dataset.verb}"][data-tense="${td.dataset.tense}"]`);
+  if (th) updateColumnHeaderState(th);
+  renderExampleList(true);
+}
+
+// Clicking a Ser/Estar column header selects every cell in that column;
+// clicking it again (once the whole column is already selected) clears it.
+function toggleColumnSelection(verbKey, tenseKey) {
+  const cells = columnCells(verbKey, tenseKey);
+  const allSelected = cells.every(td => selectedCells.has(cellKey(td.dataset.verb, td.dataset.tense, td.dataset.pronoun)));
+
+  cells.forEach(td => {
+    const key = cellKey(td.dataset.verb, td.dataset.tense, td.dataset.pronoun);
+    if (allSelected) {
+      selectedCells.delete(key);
+      td.classList.remove("selected-cell");
+    } else {
+      selectedCells.add(key);
+      td.classList.add("selected-cell");
+    }
+  });
+
+  const th = examplesChartContent.querySelector(`th.verb-head[data-verb="${verbKey}"][data-tense="${tenseKey}"]`);
+  if (th) updateColumnHeaderState(th);
   renderExampleList(true);
 }
 
