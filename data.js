@@ -9,9 +9,155 @@
 //   forms[] is aligned index-for-index with `pronouns`. Latin American Spanish
 //   only — no vosotros/as; ustedes covers 2nd person plural everywhere.
 //
-// drills[i] = { sentence, answer, options[], translation, explanation, verb, tense, pronounIndex }
-//   verb/tense/pronounIndex point at the exact chart cell this drill exercises,
-//   so the Examples view can highlight it.
+// drills[] is generated (not hand-written): for every verb/tense/pronoun cell
+// we combine a handful of usage categories (profession, origin, location...)
+// with a small vocabulary list, so each cell gets ~24 sentences instead of
+// one or two. drill = { sentence, answer, options[], translation, explanation,
+// verb, tense, pronounIndex } — verb/tense/pronounIndex point at the exact
+// chart cell this drill exercises, so the Examples view can highlight it.
+
+const SUBJECT_ES = ["Yo", "Tú", "Él/Ella/Usted", "Nosotros", "Ellos/Ustedes"];
+const SUBJECT_EN = ["I", "You", "He/She/You", "We", "They/You all"];
+const BE_PRESENT_EN = ["am", "are", "is", "are", "are"];
+const BE_PAST_EN = ["was", "were", "was", "were", "were"];
+
+// Vocabulary is gender-invariant wherever possible (words ending in -e/-a/-ista/
+// -iense etc.) so the same item works for any subject without needing separate
+// masculine/feminine forms. sg/pl covers subject-number agreement instead.
+const SER_PROFESSION = [
+  { sg: "estudiante", pl: "estudiantes", en: "a student", enPl: "students" },
+  { sg: "artista", pl: "artistas", en: "an artist", enPl: "artists" },
+  { sg: "dentista", pl: "dentistas", en: "a dentist", enPl: "dentists" },
+  { sg: "periodista", pl: "periodistas", en: "a journalist", enPl: "journalists" },
+  { sg: "gerente", pl: "gerentes", en: "a manager", enPl: "managers" },
+  { sg: "cantante", pl: "cantantes", en: "a singer", enPl: "singers" }
+];
+const SER_ORIGIN = [
+  { es: "México", en: "Mexico" },
+  { es: "Perú", en: "Peru" },
+  { es: "España", en: "Spain" },
+  { es: "Colombia", en: "Colombia" },
+  { es: "Argentina", en: "Argentina" },
+  { es: "Chile", en: "Chile" }
+];
+const SER_NATIONALITY = [
+  { sg: "canadiense", pl: "canadienses", en: "Canadian", enPl: "Canadian" },
+  { sg: "estadounidense", pl: "estadounidenses", en: "American", enPl: "American" },
+  { sg: "costarricense", pl: "costarricenses", en: "Costa Rican", enPl: "Costa Rican" },
+  { sg: "nicaragüense", pl: "nicaragüenses", en: "Nicaraguan", enPl: "Nicaraguan" },
+  { sg: "marroquí", pl: "marroquíes", en: "Moroccan", enPl: "Moroccan" },
+  { sg: "israelí", pl: "israelíes", en: "Israeli", enPl: "Israeli" }
+];
+const SER_CHARACTERISTIC = [
+  { sg: "inteligente", pl: "inteligentes", en: "smart", enPl: "smart" },
+  { sg: "amable", pl: "amables", en: "kind", enPl: "kind" },
+  { sg: "paciente", pl: "pacientes", en: "patient", enPl: "patient" },
+  { sg: "responsable", pl: "responsables", en: "responsible", enPl: "responsible" },
+  { sg: "puntual", pl: "puntuales", en: "punctual", enPl: "punctual" },
+  { sg: "valiente", pl: "valientes", en: "brave", enPl: "brave" }
+];
+const ESTAR_LOCATION = [
+  { es: "la oficina", en: "the office" },
+  { es: "el parque", en: "the park" },
+  { es: "la escuela", en: "school" },
+  { es: "la playa", en: "the beach" },
+  { es: "el hospital", en: "the hospital" },
+  { es: "la biblioteca", en: "the library" }
+];
+const ESTAR_CONDITION = [
+  { sg: "cansado", pl: "cansados", en: "tired", enPl: "tired" },
+  { sg: "ocupado", pl: "ocupados", en: "busy", enPl: "busy" },
+  { sg: "enfermo", pl: "enfermos", en: "sick", enPl: "sick" },
+  { sg: "nervioso", pl: "nerviosos", en: "nervous", enPl: "nervous" },
+  { sg: "preocupado", pl: "preocupados", en: "worried", enPl: "worried" },
+  { sg: "emocionado", pl: "emocionados", en: "excited", enPl: "excited" }
+];
+const ESTAR_ACTIVITY = [
+  { es: "trabajando", en: "working" },
+  { es: "estudiando", en: "studying" },
+  { es: "cocinando", en: "cooking" },
+  { es: "viajando", en: "traveling" },
+  { es: "leyendo", en: "reading" },
+  { es: "durmiendo", en: "sleeping" }
+];
+const ESTAR_SITUATION = [
+  { es: "de vacaciones", en: "on vacation" },
+  { es: "de viaje", en: "traveling" },
+  { es: "de compras", en: "shopping" },
+  { es: "de acuerdo", en: "in agreement" },
+  { es: "a dieta", en: "on a diet" },
+  { es: "de guardia", en: "on duty" }
+];
+
+const SER_CATEGORIES = [
+  { explanation: "Profession = identity", items: SER_PROFESSION, es: (item, pl) => (pl ? item.pl : item.sg), en: (item, pl) => (pl ? item.enPl : item.en) },
+  { explanation: "Origin", items: SER_ORIGIN, es: item => `de ${item.es}`, en: item => `from ${item.en}` },
+  { explanation: "Nationality", items: SER_NATIONALITY, es: (item, pl) => (pl ? item.pl : item.sg), en: (item, pl) => (pl ? item.enPl : item.en) },
+  { explanation: "Characteristic / personality", items: SER_CHARACTERISTIC, es: (item, pl) => `muy ${pl ? item.pl : item.sg}`, en: (item, pl) => `very ${pl ? item.enPl : item.en}` }
+];
+const ESTAR_CATEGORIES = [
+  { explanation: "Location", items: ESTAR_LOCATION, es: item => `en ${item.es}`, en: item => `at ${item.en}` },
+  { explanation: "Temporary condition", items: ESTAR_CONDITION, es: (item, pl) => `muy ${pl ? item.pl : item.sg}`, en: (item, pl) => `very ${pl ? item.enPl : item.en}` },
+  { explanation: "Ongoing action (estar + gerund)", items: ESTAR_ACTIVITY, es: item => item.es, en: item => item.en },
+  { explanation: "Temporary situation", items: ESTAR_SITUATION, es: item => item.es, en: item => item.en }
+];
+
+function allFormsForPronoun(topic, pIdx) {
+  const forms = [];
+  topic.verbs.forEach(verb => {
+    topic.tenseOrder.forEach(tenseKey => forms.push(verb.tenses[tenseKey].forms[pIdx]));
+  });
+  return forms;
+}
+
+function shuffleCopy(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function buildOptions(topic, pIdx, answer) {
+  const distractors = shuffleCopy(allFormsForPronoun(topic, pIdx).filter(f => f !== answer)).slice(0, 3);
+  return [answer, ...distractors];
+}
+
+// Combines each usage category with its vocabulary to produce ~24 sentences
+// per verb/tense/pronoun cell (4 categories x 6 items each).
+function generateDrills(topic) {
+  const drills = [];
+  const categoriesByVerb = { ser: SER_CATEGORIES, estar: ESTAR_CATEGORIES };
+
+  topic.verbs.forEach(verb => {
+    const categories = categoriesByVerb[verb.key];
+    topic.tenseOrder.forEach(tenseKey => {
+      topic.pronouns.forEach((_, pIdx) => {
+        const isPlural = pIdx === 3 || pIdx === 4;
+        const verbForm = verb.tenses[tenseKey].forms[pIdx];
+        const beEn = tenseKey === "present" ? BE_PRESENT_EN[pIdx] : BE_PAST_EN[pIdx];
+
+        categories.forEach(cat => {
+          cat.items.forEach(item => {
+            drills.push({
+              sentence: `${SUBJECT_ES[pIdx]} ___ ${cat.es(item, isPlural)}.`,
+              answer: verbForm,
+              options: buildOptions(topic, pIdx, verbForm),
+              translation: `${SUBJECT_EN[pIdx]} ${beEn} ${cat.en(item, isPlural)}.`,
+              explanation: `${cat.explanation} → ${verb.label.toLowerCase()}, ${verb.tenses[tenseKey].label.toLowerCase()}.`,
+              verb: verb.key,
+              tense: tenseKey,
+              pronounIndex: pIdx
+            });
+          });
+        });
+      });
+    });
+  });
+
+  return drills;
+}
 
 const TOPICS = [
   {
@@ -55,83 +201,10 @@ const TOPICS = [
           preterite: { label: "Preterite", forms: ["estuve", "estuviste", "estuvo", "estuvimos", "estuvieron"] }
         }
       }
-    ],
-    drills: [
-      // yo — soy / era / fui / estoy / estaba / estuve
-      { sentence: "Yo ___ ingeniera.", answer: "soy", options: ["soy", "estoy", "fui", "estaba"], translation: "I am an engineer.", explanation: "Profession = identity → ser, present.", verb: "ser", tense: "present", pronounIndex: 0 },
-      { sentence: "Yo ___ de Perú.", answer: "soy", options: ["soy", "estuve", "era", "estoy"], translation: "I am from Peru.", explanation: "Origin → ser, present.", verb: "ser", tense: "present", pronounIndex: 0 },
-      { sentence: "Yo ___ muy cansada hoy.", answer: "estoy", options: ["estoy", "soy", "fui", "era"], translation: "I am very tired today.", explanation: "Temporary condition → estar, present.", verb: "estar", tense: "present", pronounIndex: 0 },
-      { sentence: "Yo ___ en el gimnasio ahora.", answer: "estoy", options: ["estoy", "soy", "fui", "estaba"], translation: "I am at the gym right now.", explanation: "Location right now → estar, present.", verb: "estar", tense: "present", pronounIndex: 0 },
-      { sentence: "Cuando era niña, yo ___ muy curiosa.", answer: "era", options: ["era", "fui", "estaba", "soy"], translation: "When I was a girl, I was very curious.", explanation: "Ongoing personality trait in the past → ser, imperfect.", verb: "ser", tense: "imperfect", pronounIndex: 0 },
-      { sentence: "Yo ___ el capitán del equipo.", answer: "era", options: ["era", "fui", "estaba", "soy"], translation: "I was the team captain.", explanation: "An ongoing role over time in the past → ser, imperfect.", verb: "ser", tense: "imperfect", pronounIndex: 0 },
-      { sentence: "Anoche yo ___ preocupada por el examen.", answer: "estaba", options: ["estaba", "era", "estuve", "soy"], translation: "Last night I was worried about the exam.", explanation: "Temporary emotional state, ongoing at that moment → estar, imperfect.", verb: "estar", tense: "imperfect", pronounIndex: 0 },
-      { sentence: "Yo ___ de mal humor esa mañana.", answer: "estaba", options: ["estaba", "era", "estuve", "estoy"], translation: "I was in a bad mood that morning.", explanation: "Temporary mood, ongoing at that moment → estar, imperfect.", verb: "estar", tense: "imperfect", pronounIndex: 0 },
-      { sentence: "Yo ___ el último en salir.", answer: "fui", options: ["fui", "era", "estuve", "soy"], translation: "I was the last one to leave.", explanation: "A single, completed role at one moment → ser, preterite.", verb: "ser", tense: "preterite", pronounIndex: 0 },
-      { sentence: "Yo ___ presidente del club.", answer: "fui", options: ["fui", "era", "estuve", "soy"], translation: "I was president of the club.", explanation: "A completed tenure treated as one event → ser, preterite.", verb: "ser", tense: "preterite", pronounIndex: 0 },
-      { sentence: "Yo ___ en Bogotá la semana pasada.", answer: "estuve", options: ["estuve", "fui", "estaba", "soy"], translation: "I was in Bogotá last week.", explanation: "A completed stay with a clear start and end → estar, preterite.", verb: "estar", tense: "preterite", pronounIndex: 0 },
-      { sentence: "___ enfermo todo el fin de semana.", answer: "Estuve", options: ["Estuve", "Fui", "Estaba", "Soy"], translation: "I was sick all weekend.", explanation: "A completed span with a clear start and end → estar, preterite.", verb: "estar", tense: "preterite", pronounIndex: 0 },
-
-      // tú — eres / eras / fuiste / estás / estabas / estuviste
-      { sentence: "Tú ___ muy generoso.", answer: "eres", options: ["eres", "estás", "fuiste", "eras"], translation: "You are very generous.", explanation: "Personality trait → ser, present.", verb: "ser", tense: "present", pronounIndex: 1 },
-      { sentence: "¿De dónde ___ tú?", answer: "eres", options: ["eres", "estás", "estuviste", "eras"], translation: "Where are you from?", explanation: "Origin → ser, present.", verb: "ser", tense: "present", pronounIndex: 1 },
-      { sentence: "¿Cómo ___ tú hoy?", answer: "estás", options: ["estás", "eres", "fuiste", "estabas"], translation: "How are you today?", explanation: "Current mood/state → estar, present.", verb: "estar", tense: "present", pronounIndex: 1 },
-      { sentence: "Tú ___ en mi casa ahora mismo.", answer: "estás", options: ["estás", "eres", "eras", "fuiste"], translation: "You are at my house right now.", explanation: "Location right now → estar, present.", verb: "estar", tense: "present", pronounIndex: 1 },
-      { sentence: "Tú ___ mi mejor amigo en la escuela.", answer: "eras", options: ["eras", "estabas", "fuiste", "eres"], translation: "You were my best friend in school.", explanation: "Ongoing relationship in the past → ser, imperfect.", verb: "ser", tense: "imperfect", pronounIndex: 1 },
-      { sentence: "Tú ___ muy paciente de niño.", answer: "eras", options: ["eras", "fuiste", "estabas", "eres"], translation: "You were very patient as a child.", explanation: "Ongoing childhood trait → ser, imperfect.", verb: "ser", tense: "imperfect", pronounIndex: 1 },
-      { sentence: "Tú ___ muy callado esa tarde.", answer: "estabas", options: ["estabas", "eras", "estuviste", "eres"], translation: "You were very quiet that afternoon.", explanation: "Temporary state in progress → estar, imperfect.", verb: "estar", tense: "imperfect", pronounIndex: 1 },
-      { sentence: "Tú ___ emocionado por el viaje.", answer: "estabas", options: ["estabas", "eras", "estuviste", "estás"], translation: "You were excited about the trip.", explanation: "Temporary emotional state in progress → estar, imperfect.", verb: "estar", tense: "imperfect", pronounIndex: 1 },
-      { sentence: "Tú ___ muy amable conmigo ese día.", answer: "fuiste", options: ["fuiste", "eras", "estuviste", "eres"], translation: "You were very kind to me that day.", explanation: "A completed, one-time behavior → ser, preterite.", verb: "ser", tense: "preterite", pronounIndex: 1 },
-      { sentence: "Tú ___ la razón de mi éxito.", answer: "fuiste", options: ["fuiste", "eras", "estuviste", "eres"], translation: "You were the reason for my success.", explanation: "A completed, defining fact stated as one point → ser, preterite.", verb: "ser", tense: "preterite", pronounIndex: 1 },
-      { sentence: "¿Dónde ___ tú anoche?", answer: "estuviste", options: ["estuviste", "fuiste", "estabas", "eres"], translation: "Where were you last night?", explanation: "A completed location at a specific past moment → estar, preterite.", verb: "estar", tense: "preterite", pronounIndex: 1 },
-      { sentence: "Tú ___ callado durante la reunión.", answer: "estuviste", options: ["estuviste", "fuiste", "estabas", "estás"], translation: "You were quiet during the meeting.", explanation: "A completed state for the duration of an event → estar, preterite.", verb: "estar", tense: "preterite", pronounIndex: 1 },
-
-      // él/ella/usted — es / era / fue / está / estaba / estuvo
-      { sentence: "Mi hermana ___ doctora.", answer: "es", options: ["es", "está", "fue", "era"], translation: "My sister is a doctor.", explanation: "Profession → ser, present.", verb: "ser", tense: "present", pronounIndex: 2 },
-      { sentence: "La mesa ___ de madera.", answer: "es", options: ["es", "está", "estuvo", "era"], translation: "The table is made of wood.", explanation: "Material → ser, present.", verb: "ser", tense: "present", pronounIndex: 2 },
-      { sentence: "El café ___ frío.", answer: "está", options: ["está", "es", "fue", "estaba"], translation: "The coffee is cold.", explanation: "Temporary condition → estar, present.", verb: "estar", tense: "present", pronounIndex: 2 },
-      { sentence: "¿Dónde ___ el baño?", answer: "está", options: ["está", "es", "fue", "estuvo"], translation: "Where is the bathroom?", explanation: "Location → estar, present.", verb: "estar", tense: "present", pronounIndex: 2 },
-      { sentence: "Mi abuelo ___ carpintero.", answer: "era", options: ["era", "estaba", "fue", "es"], translation: "My grandfather was a carpenter.", explanation: "Ongoing profession in the past → ser, imperfect.", verb: "ser", tense: "imperfect", pronounIndex: 2 },
-      { sentence: "Mi profesora ___ muy estricta.", answer: "era", options: ["era", "fue", "estaba", "es"], translation: "My teacher was very strict.", explanation: "Ongoing personality trait in the past → ser, imperfect.", verb: "ser", tense: "imperfect", pronounIndex: 2 },
-      { sentence: "Ella ___ en casa cuando llamé.", answer: "estaba", options: ["estaba", "era", "estuvo", "es"], translation: "She was home when I called.", explanation: "Ongoing location at a past moment → estar, imperfect.", verb: "estar", tense: "imperfect", pronounIndex: 2 },
-      { sentence: "El perro ___ debajo de la mesa.", answer: "estaba", options: ["estaba", "era", "estuvo", "está"], translation: "The dog was under the table.", explanation: "Ongoing location at a past moment → estar, imperfect.", verb: "estar", tense: "imperfect", pronounIndex: 2 },
-      { sentence: "La fiesta ___ un desastre.", answer: "fue", options: ["fue", "estuvo", "era", "es"], translation: "The party was a disaster.", explanation: "A single, completed event → ser, preterite.", verb: "ser", tense: "preterite", pronounIndex: 2 },
-      { sentence: "El concierto ___ increíble.", answer: "fue", options: ["fue", "estuvo", "era", "es"], translation: "The concert was incredible.", explanation: "A single, completed event → ser, preterite.", verb: "ser", tense: "preterite", pronounIndex: 2 },
-      { sentence: "El niño ___ enfermo ayer.", answer: "estuvo", options: ["estuvo", "fue", "estaba", "es"], translation: "The boy was sick yesterday.", explanation: "A completed condition with a clear start and end → estar, preterite.", verb: "estar", tense: "preterite", pronounIndex: 2 },
-      { sentence: "Ella ___ trabajando hasta tarde.", answer: "estuvo", options: ["estuvo", "fue", "estaba", "está"], translation: "She was working late.", explanation: "Estar + gerund over a completed stretch of time → estar, preterite.", verb: "estar", tense: "preterite", pronounIndex: 2 },
-
-      // nosotros/as — somos / éramos / fuimos / estamos / estábamos / estuvimos
-      { sentence: "Nosotros ___ de México.", answer: "somos", options: ["somos", "estamos", "fuimos", "éramos"], translation: "We are from Mexico.", explanation: "Origin → ser, present.", verb: "ser", tense: "present", pronounIndex: 3 },
-      { sentence: "___ buenos amigos.", answer: "Somos", options: ["Somos", "Estamos", "Éramos", "Fuimos"], translation: "We are good friends.", explanation: "Relationship/identity → ser, present.", verb: "ser", tense: "present", pronounIndex: 3 },
-      { sentence: "___ listos para salir.", answer: "Estamos", options: ["Estamos", "Somos", "Fuimos", "Estábamos"], translation: "We are ready to leave.", explanation: "Temporary readiness → estar, present.", verb: "estar", tense: "present", pronounIndex: 3 },
-      { sentence: "Nosotros ___ en el parque.", answer: "estamos", options: ["estamos", "somos", "fuimos", "estábamos"], translation: "We are at the park.", explanation: "Location → estar, present.", verb: "estar", tense: "present", pronounIndex: 3 },
-      { sentence: "___ vecinos hace muchos años.", answer: "Éramos", options: ["Éramos", "Estábamos", "Fuimos", "Somos"], translation: "We were neighbors many years ago.", explanation: "Ongoing relationship in the past → ser, imperfect.", verb: "ser", tense: "imperfect", pronounIndex: 3 },
-      { sentence: "___ inseparables en la universidad.", answer: "Éramos", options: ["Éramos", "Fuimos", "Estábamos", "Somos"], translation: "We were inseparable in college.", explanation: "Ongoing relationship in the past → ser, imperfect.", verb: "ser", tense: "imperfect", pronounIndex: 3 },
-      { sentence: "Nosotros ___ cansados después del viaje.", answer: "estábamos", options: ["estábamos", "éramos", "estuvimos", "somos"], translation: "We were tired after the trip.", explanation: "Temporary state in progress → estar, imperfect.", verb: "estar", tense: "imperfect", pronounIndex: 3 },
-      { sentence: "___ perdidos en la ciudad.", answer: "Estábamos", options: ["Estábamos", "Éramos", "Estuvimos", "Somos"], translation: "We were lost in the city.", explanation: "Temporary state in progress → estar, imperfect.", verb: "estar", tense: "imperfect", pronounIndex: 3 },
-      { sentence: "___ campeones ese año.", answer: "Fuimos", options: ["Fuimos", "Éramos", "Estuvimos", "Somos"], translation: "We were champions that year.", explanation: "A completed achievement → ser, preterite.", verb: "ser", tense: "preterite", pronounIndex: 3 },
-      { sentence: "___ los primeros en llegar.", answer: "Fuimos", options: ["Fuimos", "Éramos", "Estuvimos", "Somos"], translation: "We were the first to arrive.", explanation: "A completed, one-time fact → ser, preterite.", verb: "ser", tense: "preterite", pronounIndex: 3 },
-      { sentence: "___ en la playa todo el fin de semana.", answer: "Estuvimos", options: ["Estuvimos", "Fuimos", "Estábamos", "Somos"], translation: "We were at the beach all weekend.", explanation: "A completed stay with a clear duration → estar, preterite.", verb: "estar", tense: "preterite", pronounIndex: 3 },
-      { sentence: "___ atrapados en el tráfico.", answer: "Estuvimos", options: ["Estuvimos", "Fuimos", "Estábamos", "Somos"], translation: "We were stuck in traffic.", explanation: "A completed situation with a clear end → estar, preterite.", verb: "estar", tense: "preterite", pronounIndex: 3 },
-
-      // ellos/ellas/ustedes — son / eran / fueron / están / estaban / estuvieron
-      { sentence: "Mis padres ___ profesores.", answer: "son", options: ["son", "están", "fueron", "eran"], translation: "My parents are teachers.", explanation: "Profession → ser, present.", verb: "ser", tense: "present", pronounIndex: 4 },
-      { sentence: "Ustedes ___ muy amables.", answer: "son", options: ["son", "están", "eran", "fueron"], translation: "You all are very kind.", explanation: "Characteristic → ser, present.", verb: "ser", tense: "present", pronounIndex: 4 },
-      { sentence: "Ellos ___ de vacaciones.", answer: "están", options: ["están", "son", "fueron", "estaban"], translation: "They are on vacation.", explanation: "Temporary situation → estar, present.", verb: "estar", tense: "present", pronounIndex: 4 },
-      { sentence: "¿Dónde ___ ustedes?", answer: "están", options: ["están", "son", "fueron", "estaban"], translation: "Where are you all?", explanation: "Location → estar, present.", verb: "estar", tense: "present", pronounIndex: 4 },
-      { sentence: "Mis padres ___ muy estrictos.", answer: "eran", options: ["eran", "estaban", "fueron", "son"], translation: "My parents were very strict.", explanation: "Ongoing personality trait in the past → ser, imperfect.", verb: "ser", tense: "imperfect", pronounIndex: 4 },
-      { sentence: "Ellos ___ mis compañeros de cuarto.", answer: "eran", options: ["eran", "fueron", "estaban", "son"], translation: "They were my roommates.", explanation: "Ongoing relationship in the past → ser, imperfect.", verb: "ser", tense: "imperfect", pronounIndex: 4 },
-      { sentence: "Ellos ___ contentos con el resultado.", answer: "estaban", options: ["estaban", "eran", "estuvieron", "son"], translation: "They were happy with the result.", explanation: "Temporary emotional state → estar, imperfect.", verb: "estar", tense: "imperfect", pronounIndex: 4 },
-      { sentence: "Ustedes ___ muy nerviosos antes del examen.", answer: "estaban", options: ["estaban", "eran", "estuvieron", "están"], translation: "You all were very nervous before the exam.", explanation: "Temporary state in progress → estar, imperfect.", verb: "estar", tense: "imperfect", pronounIndex: 4 },
-      { sentence: "Ellos ___ los ganadores del concurso.", answer: "fueron", options: ["fueron", "estuvieron", "eran", "son"], translation: "They were the winners of the contest.", explanation: "A completed role at one moment → ser, preterite.", verb: "ser", tense: "preterite", pronounIndex: 4 },
-      { sentence: "___ muy generosos con nosotros.", answer: "Fueron", options: ["Fueron", "Eran", "Estuvieron", "Son"], translation: "They were very generous with us.", explanation: "A completed, one-time behavior → ser, preterite.", verb: "ser", tense: "preterite", pronounIndex: 4 },
-      { sentence: "___ esperando por dos horas.", answer: "Estuvieron", options: ["Estuvieron", "Fueron", "Estaban", "Son"], translation: "They were waiting for two hours.", explanation: "A completed span of time → estar, preterite.", verb: "estar", tense: "preterite", pronounIndex: 4 },
-      { sentence: "___ de acuerdo con el plan.", answer: "Estuvieron", options: ["Estuvieron", "Fueron", "Estaban", "Son"], translation: "They agreed with the plan.", explanation: "A completed moment of agreement → estar, preterite.", verb: "estar", tense: "preterite", pronounIndex: 4 },
-
-      // extra present-tense variety
-      { sentence: "Mis abuelos ___ de Colombia.", answer: "son", options: ["son", "están", "fueron", "eran"], translation: "My grandparents are from Colombia.", explanation: "Origin → ser, present.", verb: "ser", tense: "present", pronounIndex: 4 },
-      { sentence: "La boda ___ el sábado.", answer: "es", options: ["es", "está", "fue", "estuvo"], translation: "The wedding is on Saturday.", explanation: "Time of an event → ser, present.", verb: "ser", tense: "present", pronounIndex: 2 },
-      { sentence: "La fiesta ___ en mi casa.", answer: "es", options: ["es", "está", "fue", "estuvo"], translation: "The party is at my house.", explanation: "Where an event takes place → ser (the event itself, not an object) → present.", verb: "ser", tense: "present", pronounIndex: 2 },
-      { sentence: "Ustedes ___ muy ocupados esta semana.", answer: "están", options: ["están", "son", "estuvieron", "fueron"], translation: "You all are very busy this week.", explanation: "Temporary condition → estar, present.", verb: "estar", tense: "present", pronounIndex: 4 }
     ]
   }
 ];
+
+TOPICS.forEach(topic => {
+  topic.drills = generateDrills(topic);
+});

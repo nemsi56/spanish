@@ -335,8 +335,10 @@ function highlightChartCell(verb, tense, pronoun) {
   if (cell) cell.classList.add("highlight-cell");
 }
 
+const ROUND_SIZE = 20;
+
 function startPractice() {
-  queue = shuffle([...currentTopic.drills]);
+  queue = shuffle([...currentTopic.drills]).slice(0, ROUND_SIZE);
   masteredCount = 0;
   updateStats();
   nextDrill();
