@@ -17,9 +17,34 @@
 // chart cell this drill exercises, so the Examples view can highlight it.
 
 const SUBJECT_ES = ["Yo", "Tú", "Él/Ella/Usted", "Nosotros", "Ellos/Ustedes"];
+const SUBJECT_ES_LOWER = ["yo", "tú", "él/ella/usted", "nosotros", "ellos/ustedes"];
 const SUBJECT_EN = ["I", "You", "He/She/You", "We", "They/You all"];
+const SUBJECT_EN_LOWER = ["I", "you", "he/she/you", "we", "they/you all"]; // "I" always stays capitalized in English
 const BE_PRESENT_EN = ["am", "are", "is", "are", "are"];
 const BE_PAST_EN = ["was", "were", "was", "were", "were"];
+
+// Imperfect and preterite conjugate the same underlying idea ("was/were") in
+// English, so the sentence itself needs a visible cue for WHY one tense was
+// chosen over the other — these are the same signal words/phrases textbooks
+// teach learners to watch for. Prepending one to every past-tense sentence
+// makes the imperfect/preterite contrast visible in the example itself, not
+// just in the explanation text below it.
+const IMPERFECT_CUES = [
+  { es: "Antes", en: "Before" },
+  { es: "De niño/a", en: "As a kid" },
+  { es: "Todos los días", en: "Every day" },
+  { es: "Siempre", en: "Always" },
+  { es: "En esa época", en: "Back then" },
+  { es: "Normalmente", en: "Normally" }
+];
+const PRETERITE_CUES = [
+  { es: "Ayer", en: "Yesterday" },
+  { es: "Una vez", en: "Once" },
+  { es: "El año pasado", en: "Last year" },
+  { es: "De repente", en: "Suddenly" },
+  { es: "Esa tarde", en: "That afternoon" },
+  { es: "Por un tiempo", en: "For a while" }
+];
 
 // Vocabulary is gender-invariant wherever possible (words ending in -e/-a/-ista/
 // -iense etc.) so the same item works for any subject without needing separate
@@ -222,13 +247,30 @@ function generateDrills(topic) {
           const explanation = cat.explanations[tenseKey];
           if (!explanation) return;
 
-          cat.items.forEach(item => {
+          const cues = tenseKey === "imperfect" ? IMPERFECT_CUES : tenseKey === "preterite" ? PRETERITE_CUES : null;
+
+          cat.items.forEach((item, itemIdx) => {
+            const complementEs = cat.es(item, isPlural);
+            const complementEn = cat.en(item, isPlural);
+            let sentence, translation, cueNote;
+
+            if (cues) {
+              const cue = cues[itemIdx % cues.length];
+              sentence = `${cue.es}, ${SUBJECT_ES_LOWER[pIdx]} ___ ${complementEs}.`;
+              translation = `${cue.en}, ${SUBJECT_EN_LOWER[pIdx]} ${beEn} ${complementEn}.`;
+              cueNote = ` Signal phrase "${cue.es}" is why this is ${verb.tenses[tenseKey].label.toLowerCase()}, not the other past tense.`;
+            } else {
+              sentence = `${SUBJECT_ES[pIdx]} ___ ${complementEs}.`;
+              translation = `${SUBJECT_EN[pIdx]} ${beEn} ${complementEn}.`;
+              cueNote = "";
+            }
+
             drills.push({
-              sentence: `${SUBJECT_ES[pIdx]} ___ ${cat.es(item, isPlural)}.`,
+              sentence,
               answer: verbForm,
               options: buildOptions(topic, pIdx, verbForm),
-              translation: `${SUBJECT_EN[pIdx]} ${beEn} ${cat.en(item, isPlural)}.`,
-              explanation,
+              translation,
+              explanation: explanation + cueNote,
               verb: verb.key,
               tense: tenseKey,
               pronounIndex: pIdx
