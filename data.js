@@ -89,17 +89,95 @@ const ESTAR_SITUATION = [
   { es: "de guardia", en: "on duty" }
 ];
 
+// Each category has one explanation PER TENSE, not just a category label with
+// the tense name stapled on — the point is to say why that tense fits this
+// kind of sentence specifically. A tense with no entry here is skipped for
+// that category: e.g. ser-preterite is omitted for origin/nationality
+// because "fui de Chile" isn't how Spanish actually expresses a change of
+// origin or nationality — forcing it would just produce a confusing example.
 const SER_CATEGORIES = [
-  { explanation: "Profession = identity", items: SER_PROFESSION, es: (item, pl) => (pl ? item.pl : item.sg), en: (item, pl) => (pl ? item.enPl : item.en) },
-  { explanation: "Origin", items: SER_ORIGIN, es: item => `de ${item.es}`, en: item => `from ${item.en}` },
-  { explanation: "Nationality", items: SER_NATIONALITY, es: (item, pl) => (pl ? item.pl : item.sg), en: (item, pl) => (pl ? item.enPl : item.en) },
-  { explanation: "Characteristic / personality", items: SER_CHARACTERISTIC, es: (item, pl) => `muy ${pl ? item.pl : item.sg}`, en: (item, pl) => `very ${pl ? item.enPl : item.en}` }
+  {
+    items: SER_PROFESSION,
+    es: (item, pl) => (pl ? item.pl : item.sg),
+    en: (item, pl) => (pl ? item.enPl : item.en),
+    explanations: {
+      present: "Profession stated as a current fact.",
+      imperfect: "An ongoing profession in the past — background information, like scene-setting in a story, with no specific end in mind.",
+      preterite: "The profession is framed as a finished chapter — a former job, clearly over."
+    }
+  },
+  {
+    items: SER_ORIGIN,
+    es: item => `de ${item.es}`,
+    en: item => `from ${item.en}`,
+    explanations: {
+      present: "Where someone is from — a lasting fact about identity.",
+      imperfect: "Origin given as background at some point in the past, e.g. setting a scene, not describing a change."
+      // no preterite: origin doesn't "complete" — real speakers don't say "fui de Chile" to mean this.
+    }
+  },
+  {
+    items: SER_NATIONALITY,
+    es: (item, pl) => (pl ? item.pl : item.sg),
+    en: (item, pl) => (pl ? item.enPl : item.en),
+    explanations: {
+      present: "Nationality — treated as an inherent trait.",
+      imperfect: "Nationality given as background information about the past."
+      // no preterite: nationality doesn't naturally "complete" as an event.
+    }
+  },
+  {
+    items: SER_CHARACTERISTIC,
+    es: (item, pl) => `muy ${pl ? item.pl : item.sg}`,
+    en: (item, pl) => `very ${pl ? item.enPl : item.en}`,
+    explanations: {
+      present: "An inherent personality trait, true in general.",
+      imperfect: "An ongoing trait or general truth about someone at a past time.",
+      preterite: "A one-off instance of behaving this way, not a general trait — a single completed moment."
+    }
+  }
 ];
 const ESTAR_CATEGORIES = [
-  { explanation: "Location", items: ESTAR_LOCATION, es: item => `en ${item.es}`, en: item => `at ${item.en}` },
-  { explanation: "Temporary condition", items: ESTAR_CONDITION, es: (item, pl) => `muy ${pl ? item.pl : item.sg}`, en: (item, pl) => `very ${pl ? item.enPl : item.en}` },
-  { explanation: "Ongoing action (estar + gerund)", items: ESTAR_ACTIVITY, es: item => item.es, en: item => item.en },
-  { explanation: "Temporary situation", items: ESTAR_SITUATION, es: item => item.es, en: item => item.en }
+  {
+    items: ESTAR_LOCATION,
+    es: item => `en ${item.es}`,
+    en: item => `at ${item.en}`,
+    explanations: {
+      present: "Where someone or something physically is, right now.",
+      imperfect: "Ongoing location at a past moment — background to a story, not a single event.",
+      preterite: "A completed stay in a place, with a clear start and end."
+    }
+  },
+  {
+    items: ESTAR_CONDITION,
+    es: (item, pl) => `muy ${pl ? item.pl : item.sg}`,
+    en: (item, pl) => `very ${pl ? item.enPl : item.en}`,
+    explanations: {
+      present: "A temporary mood or condition, true right now.",
+      imperfect: "A temporary mood or condition that was in progress at a past moment.",
+      preterite: "A temporary mood or condition with a clear start and end — it kicked in and then passed."
+    }
+  },
+  {
+    items: ESTAR_ACTIVITY,
+    es: item => item.es,
+    en: item => item.en,
+    explanations: {
+      present: "estar + gerund: an action in progress right now.",
+      imperfect: "estar + gerund: an action that was in progress at a past moment — often interrupted by something else.",
+      preterite: "estar + gerund: an action that took place over one specific, completed stretch of time."
+    }
+  },
+  {
+    items: ESTAR_SITUATION,
+    es: item => item.es,
+    en: item => item.en,
+    explanations: {
+      present: "A temporary situation, true right now.",
+      imperfect: "A temporary situation that was ongoing at a past moment.",
+      preterite: "A temporary situation with a clear start and end."
+    }
+  }
 ];
 
 function allFormsForPronoun(topic, pIdx) {
@@ -124,8 +202,10 @@ function buildOptions(topic, pIdx, answer) {
   return [answer, ...distractors];
 }
 
-// Combines each usage category with its vocabulary to produce ~24 sentences
-// per verb/tense/pronoun cell (4 categories x 6 items each).
+// Combines each usage category with its vocabulary to produce sentences for
+// every verb/tense/pronoun cell. A category is skipped for a tense it has no
+// explanation for (see SER_CATEGORIES/ESTAR_CATEGORIES) rather than forcing
+// a combination that isn't how Spanish is actually used.
 function generateDrills(topic) {
   const drills = [];
   const categoriesByVerb = { ser: SER_CATEGORIES, estar: ESTAR_CATEGORIES };
@@ -139,13 +219,16 @@ function generateDrills(topic) {
         const beEn = tenseKey === "present" ? BE_PRESENT_EN[pIdx] : BE_PAST_EN[pIdx];
 
         categories.forEach(cat => {
+          const explanation = cat.explanations[tenseKey];
+          if (!explanation) return;
+
           cat.items.forEach(item => {
             drills.push({
               sentence: `${SUBJECT_ES[pIdx]} ___ ${cat.es(item, isPlural)}.`,
               answer: verbForm,
               options: buildOptions(topic, pIdx, verbForm),
               translation: `${SUBJECT_EN[pIdx]} ${beEn} ${cat.en(item, isPlural)}.`,
-              explanation: `${cat.explanation} → ${verb.label.toLowerCase()}, ${verb.tenses[tenseKey].label.toLowerCase()}.`,
+              explanation,
               verb: verb.key,
               tense: tenseKey,
               pronounIndex: pIdx
